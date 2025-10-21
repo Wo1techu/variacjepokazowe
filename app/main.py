@@ -13,6 +13,7 @@ from pathlib import Path
 from app.core.comparator import OfferComparator
 from app.core.rfq_generator import RFQGenerator
 from app.core.file_extractor import FileExtractor, OfferDataParser
+from app.core.claude_analyzer import ClaudeOfferAnalyzer
 
 # Inicjalizacja FastAPI
 app = FastAPI(
@@ -41,6 +42,21 @@ comparator = OfferComparator()
 rfq_generator = RFQGenerator()
 file_extractor = FileExtractor()
 data_parser = OfferDataParser()
+
+# Inicjalizacja Claude AI (z fallbackiem na regex parser)
+claude_analyzer = None
+use_claude = os.getenv("USE_CLAUDE_AI", "true").lower() == "true"
+
+if use_claude:
+    try:
+        claude_analyzer = ClaudeOfferAnalyzer()
+        print("✅ Claude AI analyzer initialized successfully")
+    except ValueError as e:
+        print(f"⚠️  Claude AI not available: {e}")
+        print("📝 Using fallback regex parser instead")
+    except Exception as e:
+        print(f"⚠️  Error initializing Claude AI: {e}")
+        print("📝 Using fallback regex parser instead")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -90,8 +106,12 @@ async def compare_offers(files: List[UploadFile] = File(...), plain_text: str = 
                 # Wyciągnij tekst z pliku
                 text = file_extractor.extract_text(file_path)
 
-                # Parsuj tekst i wyciągnij dane
-                offer_data = data_parser.parse(text, Path(file_path).name)
+                # Parsuj tekst - użyj Claude AI jeśli dostępny, w przeciwnym razie regex
+                if claude_analyzer:
+                    offer_data = claude_analyzer.analyze_offer(text, Path(file_path).name)
+                else:
+                    offer_data = data_parser.parse(text, Path(file_path).name)
+
                 extracted_offers.append(offer_data)
 
             except Exception as e:
@@ -104,7 +124,10 @@ async def compare_offers(files: List[UploadFile] = File(...), plain_text: str = 
 
         # Jeśli był tekst wklejony, również go przeanalizuj
         if plain_text:
-            offer_data = data_parser.parse(plain_text, "Wklejony tekst")
+            if claude_analyzer:
+                offer_data = claude_analyzer.analyze_offer(plain_text, "Wklejony tekst")
+            else:
+                offer_data = data_parser.parse(plain_text, "Wklejony tekst")
             extracted_offers.append(offer_data)
 
         # Przygotuj dane do porównania
