@@ -38,11 +38,39 @@
             <div class="col-12">
                 <h2 class="mb-4">
                     <i class="bi bi-file-earmark-bar-graph text-primary"></i>
-                    Porównaj Oferty Excel
+                    Porównaj Oferty
                 </h2>
                 <p class="text-muted mb-4">
-                    Prześlij co najmniej 2 pliki Excel z ofertami do porównania. Aplikacja automatycznie wykryje ceny, zakres prac i wygeneruje szczegółowe porównanie.
+                    Prześlij pliki w różnych formatach (PDF, Word, JPG, Excel) lub wklej tekst oferty.
+                    Aplikacja automatycznie wyekstrahuje ceny, daty, dane firm i wygeneruje szczegółowe porównanie w Excelu.
                 </p>
+                <div class="alert alert-info">
+                    <strong><i class="bi bi-info-circle me-2"></i>Obsługiwane formaty:</strong>
+                    PDF, Word (.docx), Excel (.xlsx), Obrazy JPG/PNG (OCR), Pliki tekstowe, Wklejony tekst
+                </div>
+            </div>
+        </div>
+
+        <!-- Pole do wklejania tekstu -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clipboard-fill me-2"></i>Wklej tekst oferty (opcjonalnie)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <textarea
+                            id="plainTextInput"
+                            class="form-control"
+                            rows="6"
+                            placeholder="Wklej tutaj tekst oferty (np. z emaila, PDF skopiowanego...)&#10;&#10;Aplikacja automatycznie wyekstrahuje:&#10;- Ceny i kwoty&#10;- Daty&#10;- Numery telefonów i emaile&#10;- NIP&#10;- Nazwę firmy"></textarea>
+                        <div class="form-text mt-2">
+                            Możesz wkleić tekst razem z plikami lub zamiast nich (min. 2 źródła do porównania)
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -50,16 +78,21 @@
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="bi bi-file-earmark-arrow-up me-2"></i>Lub prześlij pliki
+                        </h5>
+                    </div>
                     <div class="card-body">
                         <div id="dropZone" class="drop-zone">
                             <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #6c757d;"></i>
-                            <p class="mt-3 mb-2">Przeciągnij pliki Excel tutaj</p>
+                            <p class="mt-3 mb-2">Przeciągnij pliki ofert tutaj</p>
                             <p class="text-muted small">lub</p>
                             <label for="fileInput" class="btn btn-primary">
                                 <i class="bi bi-folder2-open me-2"></i>Wybierz pliki
                             </label>
-                            <input type="file" id="fileInput" multiple accept=".xlsx,.xls" style="display: none;">
-                            <p class="text-muted small mt-3 mb-0">Obsługiwane formaty: .xlsx, .xls (min. 2 pliki)</p>
+                            <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.xlsx,.xls,.jpg,.jpeg,.png,.txt" style="display: none;">
+                            <p class="text-muted small mt-3 mb-0">PDF, Word, Excel, JPG/PNG, TXT</p>
                         </div>
                     </div>
                 </div>
