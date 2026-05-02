@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f59e0b">
+<title>Dziennik Pasieki</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <button id="backBtn" class="icon-btn hidden" aria-label="Wróć">←</button>
+  <h1 id="title">Pasieka</h1>
+  <button id="addBtn" class="icon-btn primary" aria-label="Dodaj">+</button>
+</header>
+
+<main id="app"></main>
+
+<template id="hiveCardTpl">
+  <article class="card hive-card">
+    <div class="card-main">
+      <div class="card-emoji">🐝</div>
+      <div class="card-body">
+        <h3 class="card-title"></h3>
+        <p class="card-sub"></p>
+      </div>
+      <div class="card-meta"></div>
+    </div>
+  </article>
+</template>
+
+<template id="emptyTpl">
+  <div class="empty">
+    <div class="empty-emoji">🍯</div>
+    <h2></h2>
+    <p></p>
+  </div>
+</template>
+
+<dialog id="modal">
+  <form id="modalForm" method="dialog">
+    <h2 id="modalTitle"></h2>
+    <div id="modalFields"></div>
+    <div class="modal-actions">
+      <button type="button" id="modalCancel" class="btn ghost">Anuluj</button>
+      <button type="submit" class="btn primary">Zapisz</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
