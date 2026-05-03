@@ -67,6 +67,24 @@ const REARING_TASKS = [
 let state = load();
 let view = { tab: 'today', sub: 'list', id: null };
 let detailView = localStorage.getItem('pasieka.detailView') || 'table';
+let hivesView = localStorage.getItem('pasieka.hivesView') || 'list';
+
+const HIVE_PALETTE = [
+  { bg: '#fef3c7', fg: '#92400e' },
+  { bg: '#dcfce7', fg: '#166534' },
+  { bg: '#e0f2fe', fg: '#075985' },
+  { bg: '#fce7f3', fg: '#9d174d' },
+  { bg: '#ede9fe', fg: '#5b21b6' },
+  { bg: '#fed7aa', fg: '#9a3412' },
+  { bg: '#cffafe', fg: '#155e75' },
+  { bg: '#fef9c3', fg: '#854d0e' }
+];
+
+function hiveColor(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return HIVE_PALETTE[h % HIVE_PALETTE.length];
+}
 
 function load() {
   try {
@@ -286,6 +304,26 @@ function renderHives() {
     return;
   }
 
+  const toggle = document.createElement('div');
+  toggle.className = 'view-toggle';
+  toggle.innerHTML = `
+    <button data-v="list" class="${hivesView==='list'?'active':''}">🗂️ Lista</button>
+    <button data-v="calendar" class="${hivesView==='calendar'?'active':''}">📊 Kalendarz</button>
+  `;
+  toggle.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      hivesView = b.dataset.v;
+      localStorage.setItem('pasieka.hivesView', hivesView);
+      render();
+    };
+  });
+  app.appendChild(toggle);
+
+  if (hivesView === 'calendar') {
+    renderHivesCalendar();
+    return;
+  }
+
   state.hives.forEach(hive => {
     const tpl = document.getElementById('hiveCardTpl').content.cloneNode(true);
     const card = tpl.querySelector('.card');
@@ -306,6 +344,140 @@ function renderHives() {
     card.addEventListener('click', () => { view = { tab: 'hives', sub: 'detail', id: hive.id }; render(); });
     app.appendChild(tpl);
   });
+}
+
+function renderHivesCalendar() {
+  const allInsps = state.hives.flatMap(h =>
+    (h.inspections || []).map(i => ({ ...i, hiveName: h.name, hiveId: h.id, queenYear: h.queenYear }))
+  ).sort((a, b) => b.date.localeCompare(a.date));
+
+  // Stats
+  const stats = document.createElement('div');
+  stats.className = 'stats';
+  const lastInsp = allInsps[0];
+  stats.innerHTML = `
+    <div class="stat"><div class="stat-val">${state.hives.length}</div><div class="stat-lbl">Uli</div></div>
+    <div class="stat"><div class="stat-val">${allInsps.length}</div><div class="stat-lbl">Przeglądów</div></div>
+    <div class="stat"><div class="stat-val">${lastInsp ? daysSince(lastInsp.date) : '—'}</div><div class="stat-lbl">Dni od ost.</div></div>
+  `;
+  app.appendChild(stats);
+
+  // Per-hive quick status row
+  const overview = document.createElement('div');
+  overview.className = 'cal-wrap';
+  const ovTitle = document.createElement('div');
+  ovTitle.className = 'cal-legend';
+  ovTitle.innerHTML = '<strong style="color:var(--ink);font-size:12px">Status uli</strong>';
+  overview.appendChild(ovTitle);
+
+  const ovTable = document.createElement('table');
+  ovTable.className = 'cal';
+  ovTable.innerHTML = `
+    <thead><tr><th>Ul</th><th>Matka</th><th>Ostatni przegląd</th><th>Stan</th></tr></thead>
+    <tbody></tbody>
+  `;
+  const ovBody = ovTable.querySelector('tbody');
+  state.hives.forEach(h => {
+    const last = (h.inspections || [])[0];
+    const c = hiveColor(h.id);
+    const days = last ? daysSince(last.date) : null;
+    const daysLabel = days == null ? '—' :
+      days === 0 ? 'dziś' :
+      days === 1 ? 'wczoraj' :
+      `${days} dni`;
+    const stateTag = !last ? '<span class="tag">brak</span>' :
+      days > 21 ? '<span class="tag bad">pilne!</span>' :
+      days > 14 ? '<span class="tag warn">sprawdzić</span>' :
+      '<span class="tag good">OK</span>';
+
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.innerHTML = `
+      <td><span class="hive-chip" style="background:${c.bg};color:${c.fg}">${escapeHtml(h.name)}</span></td>
+      <td>${h.queenYear ?? '—'}</td>
+      <td><div class="t-date">${last ? fmtDateCompact(last.date) : '—'}<small>${daysLabel}</small></div></td>
+      <td>${stateTag}</td>
+    `;
+    tr.onclick = () => { view = { tab: 'hives', sub: 'detail', id: h.id }; render(); };
+    ovBody.appendChild(tr);
+  });
+  overview.appendChild(ovTable);
+  app.appendChild(overview);
+
+  // All inspections chronologically
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.textContent = 'Wszystkie przeglądy chronologicznie';
+  app.appendChild(title);
+
+  if (!allInsps.length) {
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.style.padding = '20px';
+    empty.textContent = 'Brak przeglądów. Dodaj pierwszy z poziomu konkretnego ula.';
+    app.appendChild(empty);
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cal-wrap';
+
+  const table = document.createElement('table');
+  table.className = 'cal';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Ul</th>
+        <th>Stan</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+
+  let lastMonth = null;
+  allInsps.forEach(i => {
+    const d = fmtDate(i.date);
+    const monthKey = `${d.year}-${d.month}`;
+    if (monthKey !== lastMonth) {
+      const monthRow = document.createElement('tr');
+      monthRow.innerHTML = `<td colspan="3" style="background:var(--bg-sub);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:11px;color:var(--accent-ink);padding:8px 12px">${d.month} ${d.year}</td>`;
+      tbody.appendChild(monthRow);
+      lastMonth = monthKey;
+    }
+
+    const c = hiveColor(i.hiveId);
+    const tags = [];
+    if (i.queenSeen) tags.push('<span class="tag good">M✓</span>');
+    if (i.broodFrames != null) tags.push(`<span class="tag">Cz:${i.broodFrames}</span>`);
+    if (i.honeyFrames != null) tags.push(`<span class="tag">M:${i.honeyFrames}</span>`);
+    if (i.mood && MOOD[i.mood]) tags.push(`<span class="tag ${MOOD[i.mood].cls}">${MOOD[i.mood].label.charAt(0)}</span>`);
+    if (i.treatment) tags.push(`<span class="tag warn">💊</span>`);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="t-date">${String(d.day).padStart(2,'0')}.${String(new Date(i.date).getMonth()+1).padStart(2,'0')}<small>${d.dow}</small></div>
+      </td>
+      <td><span class="hive-chip" style="background:${c.bg};color:${c.fg}">${escapeHtml(i.hiveName)}</span></td>
+      <td>
+        <div class="insp-tags">${tags.join('')}</div>
+        ${i.notes ? `<p class="t-desc" style="display:block;margin-top:4px">${escapeHtml(i.notes)}</p>` : ''}
+      </td>
+    `;
+    tr.style.cursor = 'pointer';
+    tr.onclick = () => { view = { tab: 'hives', sub: 'detail', id: i.hiveId }; render(); };
+    tbody.appendChild(tr);
+  });
+
+  wrap.appendChild(table);
+  app.appendChild(wrap);
+}
+
+function fmtDateCompact(iso) {
+  const d = fmtDate(iso);
+  return `${String(d.day).padStart(2,'0')}.${String(new Date(iso).getMonth()+1).padStart(2,'0')}.${String(d.year).slice(2)}`;
 }
 
 function renderHiveDetail() {

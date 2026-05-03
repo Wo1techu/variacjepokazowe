@@ -396,6 +396,18 @@ dialog::backdrop { background: rgba(120, 53, 15, .25); backdrop-filter: blur(4px
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
+
+.hive-chip {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 11px;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .t-day.neg { background: var(--purple-soft); color: var(--purple-ink); }
 .t-day.zero { background: var(--accent); color: white; }
 
