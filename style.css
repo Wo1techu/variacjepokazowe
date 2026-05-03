@@ -857,6 +857,154 @@ dialog::backdrop { background: rgba(120, 53, 15, .35); backdrop-filter: blur(4px
   line-height: 1.4;
 }
 
+/* ============================================
+ * Siatka uli - status w widoku termowizyjnym
+ * ============================================ */
+
+.search-bar {
+  background: var(--bg-elev);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 18px;
+  font-size: 17px;
+  font-family: inherit;
+  width: 100%;
+  min-height: 52px;
+  color: var(--ink);
+}
+.search-bar:focus { outline: 3px solid var(--accent); outline-offset: -1px; }
+
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.status-pill {
+  background: var(--bg-elev);
+  border: 2px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.status-pill .sp-val {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.status-pill .sp-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+.status-pill.ok { border-color: var(--good); }
+.status-pill.ok .sp-val { color: var(--good-ink); }
+.status-pill.warn { border-color: #ea580c; }
+.status-pill.warn .sp-val { color: #9a3412; }
+.status-pill.urgent { border-color: var(--danger); background: var(--danger-soft); }
+.status-pill.urgent .sp-val { color: var(--danger-ink); }
+.status-pill.never .sp-val { color: var(--ink-soft); }
+
+.hive-group {
+  background: var(--bg-elev);
+  border: 2px solid var(--border-soft);
+  border-radius: 16px;
+  padding: 12px;
+}
+.hive-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 4px 6px 12px;
+  border-bottom: 2px solid var(--border-soft);
+  margin-bottom: 12px;
+}
+.hive-group-head small {
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.hive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+}
+.hive-grid-cell {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 4px;
+  text-align: center;
+  border: 2px solid transparent;
+  position: relative;
+  transition: transform .1s;
+}
+.hive-grid-cell:active { transform: scale(0.94); }
+.hive-grid-cell.ok { background: var(--good-soft); color: var(--good-ink); border-color: #86efac; }
+.hive-grid-cell.warn { background: #fed7aa; color: #9a3412; border-color: #fb923c; }
+.hive-grid-cell.urgent { background: var(--danger-soft); color: var(--danger-ink); border-color: var(--danger); }
+.hive-grid-cell.never { background: var(--bg-sub); color: var(--ink-soft); border-color: var(--border-soft); }
+.hg-name {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1;
+}
+.hg-days {
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 3px;
+  opacity: 0.8;
+}
+
+.event-badge {
+  background: var(--accent);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 5px;
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.event-badge.critical { background: var(--danger); }
+.event-badge.hive { background: var(--good); }
+
+.show-more-btn {
+  background: var(--bg-sub);
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
+  margin-top: 8px;
+}
+.show-more-btn:active { background: var(--accent-soft); }
+
 /* Toast for actions */
 .toast {
   position: fixed;

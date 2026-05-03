@@ -67,8 +67,10 @@ const REARING_TASKS = [
 let state = load();
 let view = { tab: 'today', sub: 'list', id: null };
 let detailView = localStorage.getItem('pasieka.detailView') || 'table';
-let hivesView = localStorage.getItem('pasieka.hivesView') || 'list';
+let hivesView = localStorage.getItem('pasieka.hivesView') || 'grid';
 let todayView = localStorage.getItem('pasieka.todayView') || 'dashboard';
+let hivesSearch = '';
+let hivesShowAllNeedCheck = false;
 let calMonth = new Date();
 calMonth.setDate(1);
 calMonth.setHours(0,0,0,0);
@@ -89,6 +91,24 @@ function hiveColor(id) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return HIVE_PALETTE[h % HIVE_PALETTE.length];
+}
+
+function hiveStatus(hive) {
+  const last = (hive.inspections || [])[0];
+  if (!last) return { code: 'never', days: null, label: 'brak' };
+  const days = daysSince(last.date);
+  if (days > 21) return { code: 'urgent', days, label: 'pilne' };
+  if (days > 14) return { code: 'warn', days, label: 'sprawdzić' };
+  return { code: 'ok', days, label: 'OK' };
+}
+
+function groupHivesByLocation(hives) {
+  const groups = {};
+  hives.forEach(h => {
+    const loc = h.location || 'Bez lokalizacji';
+    (groups[loc] = groups[loc] || []).push(h);
+  });
+  return Object.entries(groups).map(([loc, items]) => ({ loc, items }));
 }
 
 function load() {
@@ -299,27 +319,42 @@ function renderToday() {
     todayItems.forEach(item => app.appendChild(renderBigTask(item, item.task.critical ? 'critical' : '')));
   }
 
-  // ULE WYMAGAJĄCE PRZEGLĄDU
+  // ULE WYMAGAJĄCE PRZEGLĄDU - cap top 5 + "pokaż wszystkie"
   if (hivesNeedCheck.length) {
+    const TOP = 5;
+    const visibleList = hivesShowAllNeedCheck ? hivesNeedCheck : hivesNeedCheck.slice(0, TOP);
     const sec = document.createElement('div');
     sec.className = 'section-card';
-    let html = '<h3 class="sc-title">🐝 Ule wymagające przeglądu</h3><div class="sc-list">';
-    hivesNeedCheck.forEach(({ hive, days, status }) => {
+    const urgentCount = hivesNeedCheck.filter(x => x.status === 'urgent').length;
+    const warnCount = hivesNeedCheck.filter(x => x.status === 'warn').length;
+    const headerExtra = `<small style="font-weight:600;color:var(--ink-soft);font-size:13px">${urgentCount > 0 ? `${urgentCount} pilnych · ` : ''}${warnCount > 0 ? `${warnCount} do sprawdzenia` : ''}</small>`;
+    let html = `<h3 class="sc-title" style="display:flex;justify-content:space-between;align-items:center">🐝 Ule wymagające przeglądu (${hivesNeedCheck.length}) ${headerExtra}</h3><div class="sc-list">`;
+    visibleList.forEach(({ hive, days, status }) => {
       const cls = status === 'urgent' ? 'danger' : 'warn';
       const dayLabel = days == null ? 'Brak przeglądu' : `${days} dni temu ostatnio sprawdzony`;
+      const locInfo = hive.location ? ` · 📍 ${escapeHtml(hive.location)}` : '';
       html += `<div class="sc-item ${cls}" data-hive="${hive.id}">
         <div class="sc-item-icon">🐝</div>
         <div class="sc-item-body">
-          <p class="sc-item-title">${escapeHtml(hive.name)}</p>
+          <p class="sc-item-title">${escapeHtml(hive.name)}${locInfo}</p>
           <p class="sc-item-sub">${dayLabel}</p>
         </div>
       </div>`;
     });
     html += '</div>';
+    if (hivesNeedCheck.length > TOP && !hivesShowAllNeedCheck) {
+      html += `<button class="show-more-btn" data-act="more">Pokaż pozostałe ${hivesNeedCheck.length - TOP} ↓</button>`;
+    } else if (hivesShowAllNeedCheck && hivesNeedCheck.length > TOP) {
+      html += `<button class="show-more-btn" data-act="less">Zwiń ↑</button>`;
+    }
     sec.innerHTML = html;
     sec.querySelectorAll('.sc-item').forEach(el => {
       el.onclick = () => { view = { tab: 'hives', sub: 'detail', id: el.dataset.hive }; render(); };
     });
+    const moreBtn = sec.querySelector('[data-act="more"]');
+    const lessBtn = sec.querySelector('[data-act="less"]');
+    if (moreBtn) moreBtn.onclick = () => { hivesShowAllNeedCheck = true; render(); };
+    if (lessBtn) lessBtn.onclick = () => { hivesShowAllNeedCheck = false; render(); };
     app.appendChild(sec);
   }
 
@@ -422,16 +457,25 @@ function renderCalendarMonth() {
 
     const events = eventsByDay[iso] || [];
     const hasCritical = events.some(e => e.critical);
-    const hasOverdue = events.some(e => e.type === 'task' && !e.done && iso < today);
 
     let dots = '';
     const taskCount = events.filter(e => e.type === 'task').length;
     const hiveCount = events.filter(e => e.type === 'hive').length;
-    if (taskCount > 0) {
-      const cls = hasCritical ? 'critical' : 'task';
-      dots += `<span class="event-dot ${cls}"></span>`;
+
+    if (taskCount > 2) {
+      const cls = hasCritical ? 'critical' : '';
+      dots += `<span class="event-badge ${cls}">${taskCount}</span>`;
+    } else {
+      for (let k = 0; k < taskCount; k++) {
+        const cls = hasCritical && k === 0 ? 'critical' : 'task';
+        dots += `<span class="event-dot ${cls}"></span>`;
+      }
     }
-    if (hiveCount > 0) dots += '<span class="event-dot hive"></span>';
+    if (hiveCount > 2) {
+      dots += `<span class="event-badge hive">${hiveCount}</span>`;
+    } else {
+      for (let k = 0; k < hiveCount; k++) dots += '<span class="event-dot hive"></span>';
+    }
 
     cell.innerHTML = `
       <div class="dnum">${d.getDate()}</div>
@@ -681,14 +725,20 @@ function renderHives() {
   if (!state.hives.length) {
     const t = document.getElementById('emptyTpl').content.cloneNode(true);
     t.querySelector('h2').textContent = 'Brak uli';
-    t.querySelector('p').textContent = 'Dodaj swój pierwszy ul przyciskiem +';
+    t.querySelector('p').textContent = 'Dodaj swój pierwszy ul przyciskiem +. Możesz też dodać wiele uli naraz.';
     app.appendChild(t);
+    const bulkBtn = document.createElement('button');
+    bulkBtn.className = 'btn primary';
+    bulkBtn.textContent = '➕ Dodaj wiele uli naraz';
+    bulkBtn.onclick = addManyHives;
+    app.appendChild(bulkBtn);
     return;
   }
 
   const toggle = document.createElement('div');
   toggle.className = 'view-toggle';
   toggle.innerHTML = `
+    <button data-v="grid" class="${hivesView==='grid'?'active':''}">🔲 Siatka</button>
     <button data-v="list" class="${hivesView==='list'?'active':''}">🗂️ Lista</button>
     <button data-v="calendar" class="${hivesView==='calendar'?'active':''}">📊 Kalendarz</button>
   `;
@@ -701,31 +751,207 @@ function renderHives() {
   });
   app.appendChild(toggle);
 
+  // Status summary - liczby per kolor
+  const statuses = state.hives.map(h => hiveStatus(h));
+  const counts = {
+    ok: statuses.filter(s => s.code === 'ok').length,
+    warn: statuses.filter(s => s.code === 'warn').length,
+    urgent: statuses.filter(s => s.code === 'urgent').length,
+    never: statuses.filter(s => s.code === 'never').length
+  };
+  const summary = document.createElement('div');
+  summary.className = 'status-summary';
+  summary.innerHTML = `
+    <div class="status-pill ok"><div class="sp-val">${counts.ok}</div><div class="sp-lbl">OK</div></div>
+    <div class="status-pill warn"><div class="sp-val">${counts.warn}</div><div class="sp-lbl">Sprawdzić</div></div>
+    <div class="status-pill urgent"><div class="sp-val">${counts.urgent}</div><div class="sp-lbl">Pilne!</div></div>
+    <div class="status-pill never"><div class="sp-val">${counts.never}</div><div class="sp-lbl">Brak</div></div>
+  `;
+  app.appendChild(summary);
+
+  // Search bar
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'search-bar';
+  search.placeholder = `🔍 Szukaj ula (np. nazwa, lokalizacja)...`;
+  search.value = hivesSearch;
+  search.oninput = (e) => {
+    hivesSearch = e.target.value;
+    // Re-render only the filtered content (avoid losing focus)
+    rerenderHivesContent();
+  };
+  app.appendChild(search);
+
+  const contentEl = document.createElement('div');
+  contentEl.id = 'hivesContent';
+  contentEl.style.display = 'flex';
+  contentEl.style.flexDirection = 'column';
+  contentEl.style.gap = '12px';
+  app.appendChild(contentEl);
+
+  rerenderHivesContent();
+  return;
+}
+
+function rerenderHivesContent() {
+  const contentEl = document.getElementById('hivesContent');
+  if (!contentEl) return;
+  contentEl.innerHTML = '';
+
+  const filtered = filterHives(state.hives, hivesSearch);
+
   if (hivesView === 'calendar') {
-    renderHivesCalendar();
+    renderHivesCalendarInto(contentEl, filtered);
     return;
   }
 
-  state.hives.forEach(hive => {
-    const tpl = document.getElementById('hiveCardTpl').content.cloneNode(true);
-    const card = tpl.querySelector('.card');
-    tpl.querySelector('.card-title').textContent = hive.name;
-    const sub = [];
-    if (hive.queenYear) sub.push(`Matka ${hive.queenYear}`);
-    if (hive.location) sub.push(hive.location);
-    tpl.querySelector('.card-sub').textContent = sub.join(' · ') || 'Brak danych';
+  if (!filtered.length) {
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.style.padding = '30px 20px';
+    empty.textContent = `Brak uli pasujących do "${hivesSearch}"`;
+    contentEl.appendChild(empty);
+    return;
+  }
 
-    const last = hive.inspections?.[0];
-    const meta = tpl.querySelector('.card-meta');
-    if (last) {
-      meta.innerHTML = `<strong>${daysSince(last.date)}</strong>dni temu`;
-    } else {
-      meta.innerHTML = `<strong>—</strong>brak przeglądów`;
+  const groups = groupHivesByLocation(filtered);
+
+  if (hivesView === 'grid') {
+    groups.forEach(g => contentEl.appendChild(renderHiveGroupGrid(g)));
+    return;
+  }
+
+  // List view
+  groups.forEach(g => {
+    if (groups.length > 1) {
+      const head = document.createElement('div');
+      head.className = 'section-title';
+      head.textContent = `📍 ${g.loc} (${g.items.length})`;
+      contentEl.appendChild(head);
     }
+    g.items.forEach(hive => {
+      const tpl = document.getElementById('hiveCardTpl').content.cloneNode(true);
+      const card = tpl.querySelector('.card');
+      tpl.querySelector('.card-title').textContent = hive.name;
+      const sub = [];
+      if (hive.queenYear) sub.push(`Matka ${hive.queenYear}`);
+      if (hive.location) sub.push(hive.location);
+      tpl.querySelector('.card-sub').textContent = sub.join(' · ') || 'Brak danych';
 
-    card.addEventListener('click', () => { view = { tab: 'hives', sub: 'detail', id: hive.id }; render(); });
-    app.appendChild(tpl);
+      const last = hive.inspections?.[0];
+      const meta = tpl.querySelector('.card-meta');
+      if (last) {
+        meta.innerHTML = `<strong>${daysSince(last.date)}</strong>dni temu`;
+      } else {
+        meta.innerHTML = `<strong>—</strong>brak przeglądów`;
+      }
+
+      card.addEventListener('click', () => { view = { tab: 'hives', sub: 'detail', id: hive.id }; render(); });
+      contentEl.appendChild(tpl);
+    });
   });
+}
+
+function filterHives(hives, query) {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return hives;
+  return hives.filter(h =>
+    (h.name || '').toLowerCase().includes(q) ||
+    (h.location || '').toLowerCase().includes(q) ||
+    String(h.queenYear || '').includes(q)
+  );
+}
+
+function renderHiveGroupGrid(g) {
+  const wrap = document.createElement('div');
+  wrap.className = 'hive-group';
+
+  const head = document.createElement('div');
+  head.className = 'hive-group-head';
+  head.innerHTML = `<span>📍 ${escapeHtml(g.loc)}</span><small>${g.items.length} ${g.items.length === 1 ? 'ul' : g.items.length < 5 ? 'ule' : 'uli'}</small>`;
+  wrap.appendChild(head);
+
+  const grid = document.createElement('div');
+  grid.className = 'hive-grid';
+  g.items.forEach(h => {
+    const s = hiveStatus(h);
+    const cell = document.createElement('div');
+    cell.className = `hive-grid-cell ${s.code}`;
+    const daysTxt = s.days == null ? '—' : (s.days === 0 ? 'dziś' : s.days + 'd');
+    cell.innerHTML = `<div class="hg-name">${escapeHtml(h.name)}</div><div class="hg-days">${daysTxt}</div>`;
+    cell.title = `${h.name} - ${s.label}${s.days != null ? ` (${s.days} dni temu)` : ''}`;
+    cell.onclick = () => { view = { tab: 'hives', sub: 'detail', id: h.id }; render(); };
+    grid.appendChild(cell);
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function renderHivesCalendarInto(contentEl, hives) {
+  // Reuses original calendar logic but with filtered hives
+  const allInsps = hives.flatMap(h =>
+    (h.inspections || []).map(i => ({ ...i, hiveName: h.name, hiveId: h.id, queenYear: h.queenYear }))
+  ).sort((a, b) => b.date.localeCompare(a.date));
+
+  const stats = document.createElement('div');
+  stats.className = 'stats';
+  const lastInsp = allInsps[0];
+  stats.innerHTML = `
+    <div class="stat"><div class="stat-val">${hives.length}</div><div class="stat-lbl">Uli</div></div>
+    <div class="stat"><div class="stat-val">${allInsps.length}</div><div class="stat-lbl">Przeglądów</div></div>
+    <div class="stat"><div class="stat-val">${lastInsp ? daysSince(lastInsp.date) : '—'}</div><div class="stat-lbl">Dni od ost.</div></div>
+  `;
+  contentEl.appendChild(stats);
+
+  if (!allInsps.length) {
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.style.padding = '20px';
+    empty.textContent = 'Brak przeglądów. Dodaj pierwszy z poziomu konkretnego ula.';
+    contentEl.appendChild(empty);
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cal-wrap';
+  const table = document.createElement('table');
+  table.className = 'cal';
+  table.innerHTML = `<thead><tr><th>Data</th><th>Ul</th><th>Stan</th></tr></thead><tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+
+  let lastMonth = null;
+  allInsps.forEach(i => {
+    const d = fmtDate(i.date);
+    const monthKey = `${d.year}-${d.month}`;
+    if (monthKey !== lastMonth) {
+      const monthRow = document.createElement('tr');
+      monthRow.innerHTML = `<td colspan="3" style="background:var(--bg-sub);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:11px;color:var(--accent-ink);padding:8px 12px">${d.month} ${d.year}</td>`;
+      tbody.appendChild(monthRow);
+      lastMonth = monthKey;
+    }
+    const c = hiveColor(i.hiveId);
+    const tags = [];
+    if (i.queenSeen) tags.push('<span class="tag good">Matka ✓</span>');
+    if (i.broodFrames != null) tags.push(`<span class="tag">Czerw: ${i.broodFrames}</span>`);
+    if (i.honeyFrames != null) tags.push(`<span class="tag">Miód: ${i.honeyFrames}</span>`);
+    if (i.mood && MOOD[i.mood]) tags.push(`<span class="tag ${MOOD[i.mood].cls}">${MOOD[i.mood].label}</span>`);
+    if (i.treatment) tags.push(`<span class="tag warn">💊 ${escapeHtml(i.treatment)}</span>`);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div class="t-date">${String(d.day).padStart(2,'0')}.${String(new Date(i.date).getMonth()+1).padStart(2,'0')}<small>${d.dow}</small></div></td>
+      <td><span class="hive-chip" style="background:${c.bg};color:${c.fg}">${escapeHtml(i.hiveName)}</span></td>
+      <td>
+        <div class="insp-tags">${tags.join('')}</div>
+        ${i.notes ? `<p class="t-desc" style="display:block;margin-top:4px">${escapeHtml(i.notes)}</p>` : ''}
+      </td>
+    `;
+    tr.style.cursor = 'pointer';
+    tr.onclick = () => { view = { tab: 'hives', sub: 'detail', id: i.hiveId }; render(); };
+    tbody.appendChild(tr);
+  });
+  wrap.appendChild(table);
+  contentEl.appendChild(wrap);
 }
 
 function renderHivesCalendar() {
@@ -1229,22 +1455,44 @@ function addHive() {
     fields: [
       { name: 'name', label: 'Nazwa / numer', required: true, placeholder: 'np. Ul nr 1' },
       { name: 'queenYear', label: 'Rok matki', type: 'number', min: 2015, max: 2030, placeholder: '2024' },
-      { name: 'location', label: 'Lokalizacja', placeholder: 'np. sad za stodołą' }
+      { name: 'location', label: 'Lokalizacja / pasieczysko', placeholder: 'np. Sad za stodołą' },
+      { name: 'bulk', label: 'Lub: dodaj wiele uli (zostaw puste przy 1 ulu)', type: 'number', min: 0, max: 100, placeholder: 'np. 10 = utworzy 10 uli' }
     ],
     onSubmit: (data) => {
       if (!data.name) return;
-      state.hives.unshift({
-        id: uid(),
-        name: data.name,
-        queenYear: data.queenYear,
-        location: data.location,
-        createdAt: new Date().toISOString(),
-        inspections: []
-      });
+      const bulk = data.bulk ? Math.max(1, Math.min(100, data.bulk)) : 1;
+      const baseName = data.name.replace(/\s*\d+\s*$/, '').trim() || data.name;
+      const existing = new Set(state.hives.map(h => h.name));
+
+      let added = 0;
+      let n = 1;
+      while (added < bulk) {
+        const name = bulk === 1 ? data.name : `${baseName} ${n}`;
+        n++;
+        if (existing.has(name)) continue;
+        state.hives.push({
+          id: uid(),
+          name,
+          queenYear: data.queenYear,
+          location: data.location,
+          createdAt: new Date().toISOString(),
+          inspections: []
+        });
+        existing.add(name);
+        added++;
+        if (n > 200) break;
+      }
+      // Sortuj alfabetycznie z naturalnym porządkiem
+      state.hives.sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true }));
       save();
+      if (bulk > 1) showToast(`Dodano ${added} uli`);
       render();
     }
   });
+}
+
+function addManyHives() {
+  addHive();
 }
 
 function editHive(id) {
