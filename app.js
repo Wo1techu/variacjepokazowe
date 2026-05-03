@@ -195,15 +195,17 @@ function render() {
  * Today view - all upcoming/today tasks across all rearings
  * ============================================================ */
 
+/* ============================================================
+ * Today view - duży, czytelny dashboard "co dziś robić"
+ * ============================================================ */
+
 function renderToday() {
   const today = todayISO();
-  const banner = document.createElement('div');
-  banner.className = 'today-banner';
   const d = fmtDate(today);
-  banner.innerHTML = `<h2>${d.dow.charAt(0).toUpperCase() + d.dow.slice(1)}, ${d.day} ${d.month}</h2>
-    <p id="todayCount"></p>`;
-  app.appendChild(banner);
+  const dowFull = ['niedziela','poniedziałek','wtorek','środa','czwartek','piątek','sobota'][new Date(today).getDay()];
+  const monthFull = ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'][new Date(today).getMonth()];
 
+  // Zbierz wszystkie zadania
   const items = [];
   state.rearings.forEach(r => {
     REARING_TASKS.forEach(t => {
@@ -211,43 +213,169 @@ function renderToday() {
       const days = daysBetween(today, date);
       const done = r.tasksDone?.[t.key];
       if (done) return;
-      if (days < -2 || days > 7) return; // tylko -2 do +7 dni
+      if (days < -7 || days > 14) return;
       items.push({ rearing: r, task: t, date, days });
     });
   });
-
   items.sort((a, b) => a.days - b.days);
 
-  const todayCount = items.filter(i => i.days === 0).length;
-  document.getElementById('todayCount').textContent =
-    todayCount ? `${todayCount} ${todayCount === 1 ? 'zadanie' : todayCount < 5 ? 'zadania' : 'zadań'} na dziś` : 'Brak zadań na dziś';
+  // Ule wymagające przeglądu
+  const hivesNeedCheck = state.hives.map(h => {
+    const last = (h.inspections || [])[0];
+    if (!last) return { hive: h, days: null, status: 'never' };
+    const ds = daysSince(last.date);
+    let status;
+    if (ds > 21) status = 'urgent';
+    else if (ds > 14) status = 'warn';
+    else return null;
+    return { hive: h, days: ds, status };
+  }).filter(Boolean).sort((a, b) => (b.days ?? 999) - (a.days ?? 999));
 
-  if (!items.length) {
-    const t = document.getElementById('emptyTpl').content.cloneNode(true);
-    t.querySelector('h2').textContent = 'Wszystko spokojnie';
-    t.querySelector('p').textContent = 'Brak pilnych zadań w najbliższych dniach. Dodaj wychów matek żeby śledzić cykl.';
-    app.appendChild(t);
-    return;
+  // HERO - duża data + co dziś robić
+  const hero = document.createElement('div');
+  hero.className = 'hero-today';
+  const todayItems = items.filter(i => i.days === 0);
+  const overdueItems = items.filter(i => i.days < 0);
+
+  let heroSummary;
+  if (todayItems.length === 0 && overdueItems.length === 0 && hivesNeedCheck.length === 0) {
+    heroSummary = '<p class="hero-sub">Nic pilnego dziś. Spokojny dzień.</p>';
+  } else {
+    const parts = [];
+    if (todayItems.length) parts.push(`${todayItems.length} ${todayItems.length === 1 ? 'zadanie' : todayItems.length < 5 ? 'zadania' : 'zadań'} na dziś`);
+    if (overdueItems.length) parts.push(`<strong>${overdueItems.length} zaległe</strong>`);
+    if (hivesNeedCheck.length) parts.push(`${hivesNeedCheck.length} ${hivesNeedCheck.length === 1 ? 'ul wymaga' : 'ule wymagają'} przeglądu`);
+    heroSummary = `<p class="hero-sub">${parts.join(' · ')}</p>`;
   }
 
-  let lastGroup = null;
-  items.forEach(item => {
-    let groupLabel;
-    if (item.days < 0) groupLabel = 'Zaległe';
-    else if (item.days === 0) groupLabel = 'Dziś';
-    else if (item.days === 1) groupLabel = 'Jutro';
-    else groupLabel = 'Najbliższe dni';
+  hero.innerHTML = `
+    <div class="hero-date">${dowFull}</div>
+    <h2 class="hero-title">${d.day} ${monthFull} ${d.year}</h2>
+    ${heroSummary}
+  `;
+  app.appendChild(hero);
 
-    if (groupLabel !== lastGroup) {
-      const h = document.createElement('div');
-      h.className = 'section-title';
-      h.textContent = groupLabel;
-      app.appendChild(h);
-      lastGroup = groupLabel;
-    }
+  // ZALEGŁE - czerwona ramka
+  if (overdueItems.length) {
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.style.color = 'var(--danger-ink)';
+    title.textContent = '⚠️ Zaległe - zrób jak najszybciej';
+    app.appendChild(title);
+    overdueItems.forEach(item => app.appendChild(renderBigTask(item, 'urgent')));
+  }
 
-    app.appendChild(renderTaskCard(item.rearing, item.task, item.date, item.days, true));
-  });
+  // DZIŚ - duże karty
+  if (todayItems.length) {
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.style.color = 'var(--accent-strong)';
+    title.style.fontSize = '16px';
+    title.textContent = '📌 DZIŚ';
+    app.appendChild(title);
+    todayItems.forEach(item => app.appendChild(renderBigTask(item, item.task.critical ? 'critical' : '')));
+  }
+
+  // ULE WYMAGAJĄCE PRZEGLĄDU
+  if (hivesNeedCheck.length) {
+    const sec = document.createElement('div');
+    sec.className = 'section-card';
+    let html = '<h3 class="sc-title">🐝 Ule wymagające przeglądu</h3><div class="sc-list">';
+    hivesNeedCheck.forEach(({ hive, days, status }) => {
+      const cls = status === 'urgent' ? 'danger' : 'warn';
+      const dayLabel = days == null ? 'Brak przeglądu' : `${days} dni temu ostatnio sprawdzony`;
+      html += `<div class="sc-item ${cls}" data-hive="${hive.id}">
+        <div class="sc-item-icon">🐝</div>
+        <div class="sc-item-body">
+          <p class="sc-item-title">${escapeHtml(hive.name)}</p>
+          <p class="sc-item-sub">${dayLabel}</p>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    sec.innerHTML = html;
+    sec.querySelectorAll('.sc-item').forEach(el => {
+      el.onclick = () => { view = { tab: 'hives', sub: 'detail', id: el.dataset.hive }; render(); };
+    });
+    app.appendChild(sec);
+  }
+
+  // JUTRO + NAJBLIŻSZE 7 DNI - mniejsze karty
+  const tomorrowItems = items.filter(i => i.days === 1);
+  const upcomingItems = items.filter(i => i.days >= 2 && i.days <= 7);
+
+  if (tomorrowItems.length) {
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = 'Jutro';
+    app.appendChild(title);
+    tomorrowItems.forEach(item => app.appendChild(renderTaskCard(item.rearing, item.task, item.date, item.days, true)));
+  }
+
+  if (upcomingItems.length) {
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = 'Najbliższe dni';
+    app.appendChild(title);
+    upcomingItems.forEach(item => app.appendChild(renderTaskCard(item.rearing, item.task, item.date, item.days, true)));
+  }
+
+  // Empty state
+  if (!items.length && !hivesNeedCheck.length) {
+    const t = document.getElementById('emptyTpl').content.cloneNode(true);
+    t.querySelector('.empty-emoji').textContent = '☀️';
+    t.querySelector('h2').textContent = 'Spokojny dzień';
+    t.querySelector('p').textContent = 'Brak pilnych zadań i wszystkie ule sprawdzone na czas. Możesz dodać nowy wychów matek lub przegląd ula.';
+    app.appendChild(t);
+  }
+}
+
+function renderBigTask(item, variant) {
+  const { rearing, task, date, days } = item;
+  const card = document.createElement('div');
+  card.className = `big-task ${variant}`;
+
+  let label;
+  if (days === 0) label = 'DZIŚ DO ZROBIENIA';
+  else if (days === -1) label = 'ZALEGŁE OD WCZORAJ';
+  else if (days < 0) label = `ZALEGŁE OD ${-days} DNI`;
+  else label = `ZA ${days} DNI`;
+
+  const d = fmtDate(date);
+  const dow = ['niedz','pon','wt','śr','czw','pt','sob'][new Date(date).getDay()];
+
+  card.innerHTML = `
+    <div class="bt-label">${label}</div>
+    <h3 class="bt-title"><span class="bt-icon">${task.icon}</span>${escapeHtml(task.title)}</h3>
+    <p class="bt-meta">📅 ${d.day} ${MONTHS[new Date(date).getMonth()]} (${dow}) · Wychów: ${escapeHtml(rearing.name)}</p>
+    <p class="bt-desc">${escapeHtml(task.desc)}</p>
+    <div class="bt-actions">
+      <button class="btn ghost" data-act="open">Szczegóły</button>
+      <button class="btn success" data-act="done">✓ Gotowe</button>
+    </div>
+  `;
+  card.querySelector('[data-act="open"]').onclick = (e) => {
+    e.stopPropagation();
+    view = { tab: 'rearing', sub: 'detail', id: rearing.id };
+    render();
+  };
+  card.querySelector('[data-act="done"]').onclick = (e) => {
+    e.stopPropagation();
+    rearing.tasksDone = rearing.tasksDone || {};
+    rearing.tasksDone[task.key] = todayISO();
+    save();
+    showToast('Zadanie oznaczone jako zrobione ✓');
+    render();
+  };
+  return card;
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
 }
 
 function renderTaskCard(rearing, task, date, days, showRearingName = false) {
@@ -449,11 +577,11 @@ function renderHivesCalendar() {
 
     const c = hiveColor(i.hiveId);
     const tags = [];
-    if (i.queenSeen) tags.push('<span class="tag good">M✓</span>');
-    if (i.broodFrames != null) tags.push(`<span class="tag">Cz:${i.broodFrames}</span>`);
-    if (i.honeyFrames != null) tags.push(`<span class="tag">M:${i.honeyFrames}</span>`);
-    if (i.mood && MOOD[i.mood]) tags.push(`<span class="tag ${MOOD[i.mood].cls}">${MOOD[i.mood].label.charAt(0)}</span>`);
-    if (i.treatment) tags.push(`<span class="tag warn">💊</span>`);
+    if (i.queenSeen) tags.push('<span class="tag good">Matka ✓</span>');
+    if (i.broodFrames != null) tags.push(`<span class="tag">Czerw: ${i.broodFrames}</span>`);
+    if (i.honeyFrames != null) tags.push(`<span class="tag">Miód: ${i.honeyFrames}</span>`);
+    if (i.mood && MOOD[i.mood]) tags.push(`<span class="tag ${MOOD[i.mood].cls}">${MOOD[i.mood].label}</span>`);
+    if (i.treatment) tags.push(`<span class="tag warn">💊 ${escapeHtml(i.treatment)}</span>`);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
