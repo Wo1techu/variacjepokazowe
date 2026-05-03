@@ -13,41 +13,51 @@ const MOOD = {
   agresywne:{ label: 'Agresywne',cls: 'bad' }
 };
 
-/* Cykl wychowu matek - dni od przeniesienia larw (D0) */
+/* Cykl wychowu matek - dni względem przeniesienia larw (D0)
+ * Ujemne = przygotowania (odkład wychowujący) */
 const REARING_TASKS = [
-  { day: 0, key: 'graft', icon: '🥚', critical: true,
-    title: 'Przeniesienie larw',
-    desc: 'Dzień zerowy. Przeszczep 1-2 dniowych larw na ramki hodowlane. Rodzina wychowująca powinna być przygotowana 7 dni wcześniej (osierocona, mateczniki ratunkowe usunięte).' },
-  { day: 1, key: 'accept', icon: '🔍', critical: false,
+  { day: -9, key: 'plan', icon: '📋', critical: false, phase: 'pre',
+    title: 'Plan przygotowań',
+    desc: 'Wybierz najsilniejszą rodzinę na wychowującą (8-10 ramek pszczół, dużo otwartego czerwiu, młode pszczoły-mamki). Przygotuj zapas karmy, klateczki na izolację, ramki hodowlane, igłę do przeszczepu.' },
+  { day: -7, key: 'starter', icon: '🏗️', critical: true, phase: 'pre',
+    title: 'Utwórz odkład wychowujący',
+    desc: 'Z silnej rodziny zabierz matkę + 1-2 ramki pszczół do nowego ula (odkład). Macierzysta zostaje OSIEROCONA z otwartym czerwiem, karmą i wodą - to będzie rodzina wychowująca. Pszczoły zaczną budować mateczniki ratunkowe (zniszczymy je w D-1).' },
+  { day: -1, key: 'cleanup', icon: '🧹', critical: true, phase: 'pre',
+    title: 'Usuń mateczniki ratunkowe',
+    desc: 'Dzień przed graftowaniem - dokładnie przeglądnij rodzinę wychowującą i ZNISZCZ wszystkie mateczniki ratunkowe założone na własnych larwach. Inaczej rodzina nie przyjmie przeszczepionych larw.' },
+  { day: 0, key: 'graft', icon: '🥚', critical: true, phase: 'graft',
+    title: 'Przeniesienie larw (D0)',
+    desc: 'Przeszczep 1-2 dniowych larw na ramki hodowlane. Ramkę hodowlaną wstaw do środka rodziny wychowującej. Najlepiej w cieple, wilgotno, szybko.' },
+  { day: 1, key: 'accept', icon: '🔍', critical: false, phase: 'cells',
     title: 'Sprawdź przyjęcie larw',
-    desc: 'Po 24h sprawdź ile larw zostało przyjętych przez mamki. Wybierz najlepsze do dalszego wychowu. Możesz oszacować ile rodzinek weselnych będzie do utworzenia.' },
-  { day: 5, key: 'iso-early', icon: '🛡️', critical: false,
-    title: 'Możesz już izolować mateczniki',
-    desc: 'Najwcześniejszy termin izolacji. Klateczki + 4-5 pszczół na każdy matecznik. Można też poczekać do D10 - ale nie później!' },
-  { day: 9, key: 'add-corpus', icon: '🍯', critical: false,
+    desc: 'Po 24h sprawdź ile larw zostało przyjętych przez mamki (pływają w mleczku). Niewielka strata jest normalna. Oszacuj liczbę przyszłych rodzinek weselnych.' },
+  { day: 5, key: 'iso-early', icon: '🛡️', critical: false, phase: 'cells',
+    title: 'Najwcześniej można izolować mateczniki',
+    desc: 'Możesz już zacząć izolować mateczniki w klateczkach (4-5 pszczół na każdy). Można też poczekać do D10 - ale ANI DNIA dłużej.' },
+  { day: 9, key: 'add-corpus', icon: '🍯', critical: false, phase: 'cells',
     title: 'Opcja: dodaj korpus z karmą',
     desc: 'Jeśli rodzina wychowująca ma 9 ramek czerwiu - dodaj od dołu drugi korpus z karmą i pustymi ramkami. Po wygryzieniu robotnic będzie 19 ramek + hodowlana = miejsce na 20 rodzinek weselnych.' },
-  { day: 10, key: 'iso-deadline', icon: '⚠️', critical: true,
+  { day: 10, key: 'iso-deadline', icon: '⚠️', critical: true, phase: 'cells',
     title: 'OSTATNI dzień na izolację mateczników',
-    desc: 'Najpóźniej dziś musisz zaizolować wszystkie mateczniki w klateczkach! Inaczej pierwsza wygryziona matka zabije siostry. Przygotuj klateczki + 4-5 pszczół do każdej.' },
-  { day: 11, key: 'prep', icon: '📦', critical: true,
+    desc: 'Najpóźniej dziś musisz zaizolować WSZYSTKIE mateczniki w klateczkach! Inaczej pierwsza wygryziona matka zabije młodsze siostry. 4-5 pszczół do każdej klateczki.' },
+  { day: 11, key: 'prep', icon: '📦', critical: true, phase: 'split',
     title: 'Przygotuj sprzęt na rozdział',
-    desc: 'Korpusy z dennicą czterokomorową na rodzinki weselne (po jednej na matecznik). Ramki z węzą, plastry, ramki z karmą. Spryskiwacz, kwas mlekowy 15%, rękawiczki, okulary, maska, podkurzacz.' },
-  { day: 12, key: 'split', icon: '👑', critical: true,
+    desc: 'Korpusy z dennicą czterokomorową na rodzinki weselne (jedna na matecznik). Ramki z węzą, plastry, ramki z karmą. Spryskiwacz, kwas mlekowy 15%, rękawiczki, okulary, maska, podkurzacz.' },
+  { day: 12, key: 'split', icon: '👑', critical: true, phase: 'split',
     title: 'Wygryzanie + rozdział na rodzinki weselne',
-    desc: '1) Wyjmij ramkę hodowlaną, sprawdź mateczniki (żywe matki w stadium tuż przed wygryzieniem). 2) Spryskaj ramki z pszczołami kwasem mlekowym. 3) Rozdziel pszczoły do korpusów rodzinek weselnych. 4) Włóż młodą matkę / dojrzały matecznik do każdej. 5) Daszek, transport na nowe stanowisko (>3 km od pasieki).' },
-  { day: 17, key: 'mating', icon: '💕', critical: false,
+    desc: '1) Wyjmij ramkę hodowlaną, sprawdź mateczniki. 2) Spryskaj ramki z pszczołami kwasem mlekowym. 3) Rozdziel pszczoły do korpusów rodzinek weselnych. 4) Włóż młodą matkę / dojrzały matecznik. 5) Daszek, transport na nowe stanowisko (>3 km).' },
+  { day: 17, key: 'mating', icon: '💕', critical: false, phase: 'mating',
     title: 'Loty godowe - NIE otwieraj uli',
     desc: 'Matki latają na unasiennianie (dni 17-20). Każde otwarcie ula może spłoszyć matkę i nie wróci. Tylko obserwuj wylotki z bezpiecznej odległości.' },
-  { day: 21, key: 'check-queen', icon: '🔎', critical: true,
+  { day: 21, key: 'check-queen', icon: '🔎', critical: true, phase: 'check',
     title: 'Sprawdź czy matka żyje',
-    desc: 'Delikatna, krótka kontrola. Szukasz matki lub świeżych jajeczek (małe, sterczące pionowo). Jeśli brak - matka prawdopodobnie nie wróciła z lotu lub padła.' },
-  { day: 25, key: 'check-brood', icon: '🐛', critical: false,
+    desc: 'Delikatna, krótka kontrola. Szukasz matki lub świeżych jajeczek (małe, sterczące pionowo). Brak = matka prawdopodobnie nie wróciła z lotu.' },
+  { day: 25, key: 'check-brood', icon: '🐛', critical: false, phase: 'check',
     title: 'Sprawdź wzór czerwienia',
     desc: 'Powinno już być pełne czerwienie. Oceń wzór: zwarty (dobra matka) czy rozproszony z dziurami (matka słaba lub źle unasienniona, do wymiany).' },
-  { day: 35, key: 'evaluate', icon: '⭐', critical: false,
+  { day: 35, key: 'evaluate', icon: '⭐', critical: false, phase: 'check',
     title: 'Końcowa ocena jakości matki',
-    desc: 'Pełna ocena: wzór czerwiu, ilość ramek, nastrój pszczół, tempo rozwoju rodziny. Decyzja: zostawić matkę, sprzedać czy wymienić.' }
+    desc: 'Pełna ocena: wzór czerwiu, ilość ramek, nastrój pszczół, tempo rozwoju rodziny. Decyzja: zostawić, sprzedać czy wymienić.' }
 ];
 
 /* ============================================================
@@ -56,6 +66,7 @@ const REARING_TASKS = [
 
 let state = load();
 let view = { tab: 'today', sub: 'list', id: null };
+let detailView = localStorage.getItem('pasieka.detailView') || 'table';
 
 function load() {
   try {
@@ -466,11 +477,109 @@ function renderRearingDetail() {
   title.textContent = 'Harmonogram cyklu';
   app.appendChild(title);
 
+  const toggle = document.createElement('div');
+  toggle.className = 'view-toggle';
+  toggle.innerHTML = `
+    <button data-v="table" class="${detailView==='table'?'active':''}">📊 Tabela</button>
+    <button data-v="cards" class="${detailView==='cards'?'active':''}">🗂️ Karty</button>
+  `;
+  toggle.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      detailView = b.dataset.v;
+      localStorage.setItem('pasieka.detailView', detailView);
+      render();
+    };
+  });
+  app.appendChild(toggle);
+
+  if (detailView === 'table') {
+    app.appendChild(renderRearingTable(r));
+  } else {
+    REARING_TASKS.forEach(t => {
+      const date = addDays(r.graftDate, t.day);
+      const d = daysBetween(todayISO(), date);
+      app.appendChild(renderTaskCard(r, t, date, d, false));
+    });
+  }
+}
+
+function renderRearingTable(r) {
+  const wrap = document.createElement('div');
+  wrap.className = 'cal-wrap';
+
+  const legend = document.createElement('div');
+  legend.className = 'cal-legend';
+  legend.innerHTML = `
+    <span><span class="dot" style="background:#faf5ff"></span>Przygotowania</span>
+    <span><span class="dot" style="background:var(--accent-soft)"></span>Cykl</span>
+    <span><span class="dot" style="background:var(--info-soft)"></span>Dziś</span>
+    <span><span class="dot" style="background:var(--danger-soft)"></span>Zaległe</span>
+    <span><span class="dot" style="background:var(--good)"></span>Zrobione</span>
+  `;
+  wrap.appendChild(legend);
+
+  const table = document.createElement('table');
+  table.className = 'cal';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Dzień</th>
+        <th>Zadanie</th>
+        <th>✓</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+  const today = todayISO();
+
   REARING_TASKS.forEach(t => {
     const date = addDays(r.graftDate, t.day);
-    const d = daysBetween(todayISO(), date);
-    app.appendChild(renderTaskCard(r, t, date, d, false));
+    const d = daysBetween(today, date);
+    const done = r.tasksDone?.[t.key];
+    const dt = fmtDate(date);
+
+    const tr = document.createElement('tr');
+    if (done) tr.classList.add('row-done');
+    else if (d === 0) tr.classList.add('row-today');
+    else if (d < 0) tr.classList.add('row-overdue');
+    if (t.critical && !done) tr.classList.add('row-critical');
+    if (t.phase === 'pre') tr.classList.add('row-pre');
+    if (t.phase === 'graft') tr.classList.add('row-graft');
+
+    const dayCls = t.day < 0 ? 'neg' : t.day === 0 ? 'zero' : '';
+    const dayLabel = t.day === 0 ? 'D0' : t.day < 0 ? `D${t.day}` : `D+${t.day}`;
+
+    tr.innerHTML = `
+      <td>
+        <div class="t-date">${String(dt.day).padStart(2,'0')}.${String(new Date(date).getMonth()+1).padStart(2,'0')}<small>${dt.dow}</small></div>
+      </td>
+      <td><span class="t-day ${dayCls}">${dayLabel}</span></td>
+      <td>
+        <h4 class="t-title"><span class="t-icon">${t.icon}</span>${escapeHtml(t.title)}</h4>
+        <p class="t-desc">${escapeHtml(t.desc)}</p>
+      </td>
+      <td><button class="t-check" aria-label="Oznacz">${done ? '✓' : ''}</button></td>
+    `;
+
+    tr.onclick = (e) => {
+      if (e.target.closest('.t-check')) return;
+      tr.classList.toggle('expanded');
+    };
+    tr.querySelector('.t-check').onclick = (e) => {
+      e.stopPropagation();
+      r.tasksDone = r.tasksDone || {};
+      if (done) delete r.tasksDone[t.key];
+      else r.tasksDone[t.key] = todayISO();
+      save();
+      render();
+    };
+    tbody.appendChild(tr);
   });
+
+  wrap.appendChild(table);
+  return wrap;
 }
 
 function fmtDateShort(iso) {
@@ -653,7 +762,7 @@ function addRearing() {
     title: 'Nowy wychów matek',
     fields: [
       { name: 'name', label: 'Nazwa wychowu', required: true, placeholder: 'np. Wiosna 2026' },
-      { name: 'graftDate', label: 'Data przeniesienia larw (D0)', type: 'date', required: true, value: todayISO() },
+      { name: 'graftDate', label: 'Data przeniesienia larw (D0)', type: 'date', required: true, value: addDays(todayISO(), 9) },
       { name: 'graftCount', label: 'Liczba przeniesionych larw', type: 'number', min: 1, max: 100, placeholder: '24' },
       { name: 'rearingHive', label: 'Rodzina wychowująca (nazwa ula)', placeholder: 'np. Ul nr 3' },
       { name: 'motherHive', label: 'Rodzina matczyna (skąd larwy)', placeholder: 'np. Ul nr 7' },
