@@ -68,6 +68,11 @@ let state = load();
 let view = { tab: 'today', sub: 'list', id: null };
 let detailView = localStorage.getItem('pasieka.detailView') || 'table';
 let hivesView = localStorage.getItem('pasieka.hivesView') || 'list';
+let todayView = localStorage.getItem('pasieka.todayView') || 'dashboard';
+let calMonth = new Date();
+calMonth.setDate(1);
+calMonth.setHours(0,0,0,0);
+let selectedDay = null;
 
 const HIVE_PALETTE = [
   { bg: '#fef3c7', fg: '#92400e' },
@@ -200,6 +205,24 @@ function render() {
  * ============================================================ */
 
 function renderToday() {
+  // Toggle dashboard / calendar
+  const toggle = document.createElement('div');
+  toggle.className = 'view-toggle';
+  toggle.innerHTML = `
+    <button data-v="dashboard" class="${todayView==='dashboard'?'active':''}">📋 Dziś</button>
+    <button data-v="calendar" class="${todayView==='calendar'?'active':''}">🗓️ Kalendarz</button>
+  `;
+  toggle.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      todayView = b.dataset.v;
+      localStorage.setItem('pasieka.todayView', todayView);
+      render();
+    };
+  });
+  app.appendChild(toggle);
+
+  if (todayView === 'calendar') { renderCalendarMonth(); return; }
+
   const today = todayISO();
   const d = fmtDate(today);
   const dowFull = ['niedziela','poniedziałek','wtorek','środa','czwartek','piątek','sobota'][new Date(today).getDay()];
@@ -328,6 +351,237 @@ function renderToday() {
     t.querySelector('p').textContent = 'Brak pilnych zadań i wszystkie ule sprawdzone na czas. Możesz dodać nowy wychów matek lub przegląd ula.';
     app.appendChild(t);
   }
+}
+
+/* ============================================================
+ * Kalendarz miesięczny - klasyczna siatka 7 kolumn
+ * ============================================================ */
+
+function renderCalendarMonth() {
+  if (!selectedDay) selectedDay = todayISO();
+
+  // Zbierz wszystkie zdarzenia w danym miesiącu
+  const eventsByDay = computeMonthEvents(calMonth);
+
+  // Nawigacja miesiąca
+  const monthName = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
+                     'Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'][calMonth.getMonth()];
+
+  const nav = document.createElement('div');
+  nav.className = 'cal-nav';
+  nav.innerHTML = `
+    <button class="cal-nav-btn" data-act="prev" aria-label="Poprzedni miesiąc">‹</button>
+    <button class="cal-nav-title" data-act="today">${monthName} ${calMonth.getFullYear()}</button>
+    <button class="cal-nav-btn" data-act="next" aria-label="Następny miesiąc">›</button>
+  `;
+  nav.querySelector('[data-act="prev"]').onclick = () => {
+    calMonth.setMonth(calMonth.getMonth() - 1);
+    render();
+  };
+  nav.querySelector('[data-act="next"]').onclick = () => {
+    calMonth.setMonth(calMonth.getMonth() + 1);
+    render();
+  };
+  nav.querySelector('[data-act="today"]').onclick = () => {
+    calMonth = new Date();
+    calMonth.setDate(1);
+    calMonth.setHours(0,0,0,0);
+    selectedDay = todayISO();
+    render();
+  };
+  app.appendChild(nav);
+
+  // Siatka kalendarza
+  const grid = document.createElement('div');
+  grid.className = 'month-grid';
+
+  // Nagłówki dni tygodnia (pn-nd)
+  ['Pon','Wt','Śr','Czw','Pt','Sob','Nd'].forEach(name => {
+    const h = document.createElement('div');
+    h.className = 'month-head';
+    h.textContent = name;
+    grid.appendChild(h);
+  });
+
+  // Pierwszy poniedziałek widocznego miesiąca
+  const firstDow = (calMonth.getDay() + 6) % 7; // 0 = pn
+  const startDate = new Date(calMonth);
+  startDate.setDate(1 - firstDow);
+
+  const today = todayISO();
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const cell = document.createElement('div');
+    cell.className = 'month-day';
+    if (d.getMonth() !== calMonth.getMonth()) cell.classList.add('other-month');
+    if (iso === today) cell.classList.add('today');
+    if (iso === selectedDay) cell.classList.add('selected');
+    if (d.getDay() === 0 || d.getDay() === 6) cell.classList.add('weekend');
+
+    const events = eventsByDay[iso] || [];
+    const hasCritical = events.some(e => e.critical);
+    const hasOverdue = events.some(e => e.type === 'task' && !e.done && iso < today);
+
+    let dots = '';
+    const taskCount = events.filter(e => e.type === 'task').length;
+    const hiveCount = events.filter(e => e.type === 'hive').length;
+    if (taskCount > 0) {
+      const cls = hasCritical ? 'critical' : 'task';
+      dots += `<span class="event-dot ${cls}"></span>`;
+    }
+    if (hiveCount > 0) dots += '<span class="event-dot hive"></span>';
+
+    cell.innerHTML = `
+      <div class="dnum">${d.getDate()}</div>
+      <div class="events">${dots}</div>
+    `;
+    cell.onclick = () => {
+      selectedDay = iso;
+      render();
+    };
+    grid.appendChild(cell);
+  }
+  app.appendChild(grid);
+
+  // Legenda
+  const legend = document.createElement('div');
+  legend.className = 'cal-legend-sm';
+  legend.innerHTML = `
+    <span><span class="event-dot task"></span> Zadanie</span>
+    <span><span class="event-dot critical"></span> Krytyczne</span>
+    <span><span class="event-dot hive"></span> Ul</span>
+  `;
+  app.appendChild(legend);
+
+  // Panel wybranego dnia
+  const dayPanel = document.createElement('div');
+  dayPanel.className = 'day-panel';
+  const sd = new Date(selectedDay);
+  const sdMonth = ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'][sd.getMonth()];
+  const sdDow = ['niedziela','poniedziałek','wtorek','środa','czwartek','piątek','sobota'][sd.getDay()];
+  const isToday = selectedDay === today;
+
+  let panelHtml = `
+    <div class="day-panel-head">
+      <h3>${sd.getDate()} ${sdMonth} ${sd.getFullYear()}</h3>
+      <p>${sdDow}${isToday ? ' · DZIŚ' : ''}</p>
+    </div>
+  `;
+
+  const dayEvents = eventsByDay[selectedDay] || [];
+  if (!dayEvents.length) {
+    panelHtml += `<p class="day-empty">Brak zaplanowanych zadań na ten dzień.</p>`;
+  } else {
+    panelHtml += '<div class="day-events">';
+    dayEvents.forEach(e => {
+      if (e.type === 'task') {
+        const checkClass = e.done ? 'done' : '';
+        panelHtml += `
+          <div class="day-event ${e.critical ? 'critical' : ''} ${checkClass}" data-rid="${e.rearingId}" data-tk="${e.taskKey}">
+            <div class="de-icon">${e.icon}</div>
+            <div class="de-body">
+              <h4>${escapeHtml(e.title)}</h4>
+              <p class="de-meta">Wychów: ${escapeHtml(e.rearingName)} · D${e.day >= 0 ? '+' + e.day : e.day}</p>
+              <p class="de-desc">${escapeHtml(e.desc)}</p>
+            </div>
+            <button class="t-check" data-act="toggle">${e.done ? '✓' : ''}</button>
+          </div>`;
+      } else if (e.type === 'hive') {
+        panelHtml += `
+          <div class="day-event hive" data-hid="${e.hiveId}">
+            <div class="de-icon">🐝</div>
+            <div class="de-body">
+              <h4>Przegląd: ${escapeHtml(e.hiveName)}</h4>
+              <p class="de-desc">${escapeHtml(e.summary)}</p>
+            </div>
+          </div>`;
+      }
+    });
+    panelHtml += '</div>';
+  }
+
+  dayPanel.innerHTML = panelHtml;
+  app.appendChild(dayPanel);
+
+  // Wire up day events
+  dayPanel.querySelectorAll('.day-event').forEach(el => {
+    el.onclick = (ev) => {
+      if (ev.target.closest('[data-act="toggle"]')) return;
+      const hid = el.dataset.hid;
+      const rid = el.dataset.rid;
+      if (hid) { view = { tab: 'hives', sub: 'detail', id: hid }; render(); }
+      else if (rid) { view = { tab: 'rearing', sub: 'detail', id: rid }; render(); }
+    };
+    const toggleBtn = el.querySelector('[data-act="toggle"]');
+    if (toggleBtn) {
+      toggleBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        const r = state.rearings.find(x => x.id === el.dataset.rid);
+        if (!r) return;
+        r.tasksDone = r.tasksDone || {};
+        if (r.tasksDone[el.dataset.tk]) delete r.tasksDone[el.dataset.tk];
+        else { r.tasksDone[el.dataset.tk] = todayISO(); showToast('Zadanie oznaczone jako zrobione ✓'); }
+        save();
+        render();
+      };
+    }
+  });
+}
+
+function computeMonthEvents(monthDate) {
+  const result = {};
+  const monthStart = new Date(monthDate);
+  const monthEnd = new Date(monthDate);
+  monthEnd.setMonth(monthEnd.getMonth() + 1);
+  // Rozszerz o widoczne dni z poprzedniego/następnego miesiąca
+  const viewStart = new Date(monthStart);
+  viewStart.setDate(viewStart.getDate() - 7);
+  const viewEnd = new Date(monthEnd);
+  viewEnd.setDate(viewEnd.getDate() + 7);
+
+  state.rearings.forEach(r => {
+    REARING_TASKS.forEach(t => {
+      const date = addDays(r.graftDate, t.day);
+      const d = new Date(date);
+      if (d < viewStart || d > viewEnd) return;
+      result[date] = result[date] || [];
+      result[date].push({
+        type: 'task',
+        rearingId: r.id,
+        rearingName: r.name,
+        taskKey: t.key,
+        title: t.title,
+        desc: t.desc,
+        icon: t.icon,
+        critical: t.critical,
+        day: t.day,
+        done: !!r.tasksDone?.[t.key]
+      });
+    });
+  });
+
+  state.hives.forEach(h => {
+    (h.inspections || []).forEach(i => {
+      const d = new Date(i.date);
+      if (d < viewStart || d > viewEnd) return;
+      const tags = [];
+      if (i.queenSeen) tags.push('matka ✓');
+      if (i.broodFrames != null) tags.push(`czerw ${i.broodFrames}`);
+      if (i.honeyFrames != null) tags.push(`miód ${i.honeyFrames}`);
+      if (i.mood && MOOD[i.mood]) tags.push(MOOD[i.mood].label.toLowerCase());
+      result[i.date] = result[i.date] || [];
+      result[i.date].push({
+        type: 'hive',
+        hiveId: h.id,
+        hiveName: h.name,
+        summary: tags.join(', ') || 'przegląd'
+      });
+    });
+  });
+
+  return result;
 }
 
 function renderBigTask(item, variant) {
