@@ -79,7 +79,35 @@ body {
   color: var(--accent-ink);
   border-color: transparent;
 }
-.icon-btn.hidden { display: none; }
+.icon-btn.hidden { display: none !important; }
+
+.tabs {
+  position: sticky;
+  top: 67px;
+  z-index: 9;
+  display: flex;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+}
+.tabs.hidden { display: none; }
+.tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  padding: 12px 6px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 
 #app {
   max-width: 720px;
@@ -156,7 +184,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-soft);
-  margin: 8px 4px 0;
+  margin: 12px 4px 0;
   font-weight: 600;
 }
 
@@ -338,4 +366,116 @@ dialog::backdrop { background: rgba(0,0,0,.4); backdrop-filter: blur(4px); }
   justify-content: flex-end;
 }
 
-.fab-spacer { height: 20px; }
+/* Wychów matek - timeline */
+.task {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: transform .1s, opacity .15s;
+}
+.task:active { transform: scale(0.99); }
+.task.done { opacity: 0.55; }
+.task.done .task-title { text-decoration: line-through; }
+.task.today { border-color: var(--accent); border-width: 2px; box-shadow: 0 0 0 4px var(--accent-soft); }
+.task.overdue { border-color: var(--danger); }
+.task.future { opacity: 0.7; }
+
+.task-day {
+  text-align: center;
+  width: 56px;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 8px 0;
+}
+.task.critical .task-day { background: #fee2e2; }
+.task.critical .task-day .day-n { color: #991b1b; }
+.task.critical .task-day .day-d { color: #991b1b; }
+@media (prefers-color-scheme: dark) {
+  .task.critical .task-day { background: #7f1d1d; }
+  .task.critical .task-day .day-n { color: #fecaca; }
+  .task.critical .task-day .day-d { color: #fecaca; }
+}
+.day-n {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  line-height: 1;
+}
+.day-d {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  margin-top: 2px;
+  font-weight: 600;
+}
+.task-body { flex: 1; min-width: 0; }
+.task-icon { font-size: 18px; margin-right: 6px; }
+.task-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.task-meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.task-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.task-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  margin-top: 2px;
+  font-size: 14px;
+}
+.task.done .task-check {
+  background: var(--good);
+  border-color: var(--good);
+  color: white;
+}
+
+.today-banner {
+  background: linear-gradient(135deg, var(--accent), #fbbf24);
+  border-radius: 16px;
+  padding: 16px 18px;
+  color: var(--accent-ink);
+}
+.today-banner h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.today-banner p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.rearing-card-progress {
+  margin-top: 10px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rearing-card-progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width .3s;
+}
